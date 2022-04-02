@@ -60,15 +60,23 @@ fn main() -> Result<(), std::io::Error>{
 
     let mut temp_filepaths: HashMap<&PathBuf, PathBuf> = HashMap::new();
 
+    let mut text_update_count = 0;
     for old_filepath in &old_filepaths {
         let reader = BufReader::new(File::open(&old_filepath).unwrap());
 
-        let new_text = reader
+        let mut new_text = reader
             .lines()
             .into_iter()
             .map(|line| line.unwrap())
-            .map(|line| line.replace(&old_string, &new_string))
             .collect::<Vec<String>>();
+        
+        if new_text.iter().any(|line| line.contains(&old_string)) {
+            text_update_count += 1;
+            new_text = new_text
+                .into_iter()
+                .map(|line| line.replace(&old_string, &new_string))
+                .collect::<Vec<String>>();
+        }
 
         if old_filepath.to_str().unwrap() == "../../faust/test.str.two.md" {
             if args.is_writing {
@@ -162,10 +170,18 @@ fn main() -> Result<(), std::io::Error>{
 
     if args.is_writing {
         remove_temp_dir(TEMP_DIR);
-        println!("Filename replacement complete! {} files moved. ", move_count);
+        println!("Filename replacement complete!\n\
+            \t{} file texts updated.\n\
+            \t{} files moved.",
+                 text_update_count,
+                 move_count);
     }
     else {
-        println!("Filename replacement complete! {} files would be moved. ", move_count);
+        println!("Debug filename replacement complete!\n\
+            \t{} file texts would be updated.\n\
+            \t{} files woud be moved.",
+                 text_update_count,
+                 move_count);
     }
     Ok(())
 
