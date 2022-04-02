@@ -5,6 +5,7 @@ Case-sensitive.
 */
 use std::collections::HashMap;
 use std::ffi::OsString;
+use std::fmt::format;
 use std::fs;
 use std::fs::{create_dir, File, remove_dir_all};
 use std::io::{BufRead, BufReader, Write};
@@ -29,6 +30,10 @@ struct Args {
     #[clap(name = "is_writing", short = 'w', long = "write", help = "If provided, changes will \
     be written. If not, no changes occur.")]
     is_writing: bool,
+
+    #[clap(name = "update_filenames_and_md_links_only", short = 'n', help = "If provided, changes will \
+    only affect filenames and markdown links to those filenames.")]
+    update_filenames_and_md_links_only: bool,
 }
 
 fn main() -> Result<(), std::io::Error>{
@@ -69,12 +74,31 @@ fn main() -> Result<(), std::io::Error>{
             .into_iter()
             .map(|line| line.unwrap())
             .collect::<Vec<String>>();
-        
+
         if new_text.iter().any(|line| line.contains(&old_string)) {
             text_update_count += 1;
             new_text = new_text
                 .into_iter()
-                .map(|line| line.replace(&old_string, &new_string))
+                .map(|line|
+                    if args.update_filenames_and_md_links_only {
+                        // replace only if surrounded by brackets
+                        let index_pairs = line.match_indices(&old_string);
+                        let mut result = line.clone();
+                        for index_pair in index_pairs {
+                            let index = index_pair.0;
+                            if is_inside_link(&line, String::from(&old_string).len(), index) {
+                                result.replace_range((index..index+String::from(&old_string).len()), &new_string);
+                            }
+                        }
+                        result
+                    }
+                    else {
+                        line.replace(
+                            &old_string,
+                            &new_string
+                        )
+                    }
+                )
                 .collect::<Vec<String>>();
         }
 
@@ -193,4 +217,34 @@ fn remove_temp_dir(temp_dir: &str) -> () {
         println!("Warning: temp dir could not be deleted.");
         exit(1);
     }
+}
+
+// Returns true if the child string is found inside a markdown link.
+fn is_inside_link(parent: &String, child_len: usize, child_index: usize) -> bool {
+    // Get left bound if it's a valid index.
+    {
+        let left_substring = &parent[0..child_index];
+        let closest_rbrackets = left_substring.rfind("]]");
+        let closest_lbrackets = left_substring.rfind("[[");
+        if closest_lbrackets.is_none()
+            || (closest_rbrackets.is_some() &&
+                closest_lbrackets.unwrap() < closest_rbrackets.unwrap()
+                )
+        {
+            return false;
+        }
+    }
+    {
+        let right_substring = &parent[child_index+child_len+1..parent.len()];
+        let closest_rbrackets = right_substring.find("]]");
+        let closest_lbrackets = right_substring.find("[[");
+        if closest_rbrackets.is_none()
+            || (closest_lbrackets.is_some() &&
+                closest_lbrackets.unwrap() < closest_rbrackets.unwrap()
+                )
+        {
+            return false;
+        }
+    }
+    true
 }
