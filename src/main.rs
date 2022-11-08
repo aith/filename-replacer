@@ -246,5 +246,30 @@ fn is_inside_link(parent: &String, child_len: usize, child_index: usize) -> bool
             return false;
         }
     }
+    // Handle aliases
+    {
+        let left_substring = &parent[0..child_index];
+        let closest_rbrackets = left_substring.rfind("|");
+        let closest_lbrackets = left_substring.rfind("[[");
+        if closest_lbrackets.is_none()
+            || (closest_rbrackets.is_some() &&
+            closest_lbrackets.unwrap() < closest_rbrackets.unwrap()
+        )
+        {
+            return false;
+        }
+    }
+    {
+        let right_substring = &parent[child_index+child_len+1..parent.len()];
+        let closest_rbrackets = right_substring.find("|");
+        let closest_lbrackets = right_substring.find("[[");
+        if closest_rbrackets.is_none()
+            || (closest_lbrackets.is_some() &&
+            closest_lbrackets.unwrap() < closest_rbrackets.unwrap()
+        )
+        {
+            return false;
+        }
+    }
     true
 }
